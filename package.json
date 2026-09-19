@@ -1,0 +1,31 @@
+{
+  "name": "nahol-dental-care",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nahol Dental Care - Full-stack dental clinic (React + Vite frontend, Express + Prisma + MySQL backend)",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm --prefix server run dev\" \"npm run dev:client\"",
+    "dev:client": "vite",
+    "dev:server": "npm --prefix server run dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start:server": "npm --prefix server start",
+    "db:setup": "cd server && npm run db:setup",
+    "db:seed": "cd server && npm run prisma:seed"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.5.5",
+    "concurrently": "^9.2.4",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.4.21"
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.4",
+    "lucide-react": "^1.42.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.3"
+  }
+}

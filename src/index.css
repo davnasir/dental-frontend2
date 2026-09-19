@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary-blue: #14357B;
+    --primary-teal: #2299D6;
+    --primary-navy: #0A2255;
+    --bg-light: #D6E8F7;
+    --accent-cyan: #2299D6;
+    --dental-blue: #14357B;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 88px;
+  }
+
+  /* Bengali typography enhancement */
+  html[lang="bn"] body,
+  html[lang="bn"] h1,
+  html[lang="bn"] h2,
+  html[lang="bn"] h3,
+  html[lang="bn"] h4,
+  html[lang="bn"] p,
+  html[lang="bn"] span,
+  html[lang="bn"] button,
+  html[lang="bn"] input,
+  html[lang="bn"] select,
+  html[lang="bn"] textarea {
+    font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #EDF7FC;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: #D6E8F7;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #2299D6;
+    border-radius: 4px;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #14357B;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #14357B;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(184, 216, 238, 0.8);
+  }
+
+  .dark .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(184, 216, 238, 0.7);
+  }
+
+  .glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glass-card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 32px -8px rgba(34, 153, 214, 0.15);
+  }
+
+  .dark .glass-card-hover:hover {
+    box-shadow: 0 16px 32px -8px rgba(34, 153, 214, 0.18);
+  }
+
+  .gradient-text-teal {
+    background: linear-gradient(135deg, #14357B 0%, #2299D6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .dark .gradient-text-teal {
+    background: linear-gradient(135deg, #14357B 0%, #2299D6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

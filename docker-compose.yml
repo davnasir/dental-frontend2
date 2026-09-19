@@ -1,0 +1,74 @@
+# Local development stack — run from this (frontend) directory or from the repo
+# root with `docker compose -f frontend/docker-compose.yml up --build`.
+#
+# For production use the root docker-compose.prod.yml instead.
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: dental_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: dental_clinic
+      MYSQL_USER: dental
+      MYSQL_PASSWORD: dentalpass
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-prootpassword']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: dental_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: mysql://dental:dentalpass@mysql:3306/dental_clinic
+      JWT_ACCESS_SECRET: dev_access_secret
+      JWT_REFRESH_SECRET: dev_refresh_secret
+      JWT_ACCESS_EXPIRES: 15m
+      JWT_REFRESH_EXPIRES: 7d
+      CLIENT_URL: http://localhost:5173
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      WHATSAPP_NUMBER: ${WHATSAPP_NUMBER:-8801948921229}
+      SEED_ADMIN_EMAIL: superadmin@nahol.com
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-123456789}
+      UPLOAD_DIR: uploads
+      MAX_FILE_SIZE: 5242880
+    ports:
+      - '5000:5000'
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    image: node:20-alpine
+    container_name: dental_frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - .:/app
+    ports:
+      - '5173:5173'
+    environment:
+      VITE_API_URL: http://localhost:5000/api/v1
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  uploads_data:
