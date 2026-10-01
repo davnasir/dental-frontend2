@@ -5,17 +5,19 @@ import {
   Trash2,
   KeyRound,
   Clock,
-  CalendarClock,
   Calculator,
   Image as ImageIcon,
   Save,
+  MessageSquare,
+  Send,
+  ShieldCheck,
 } from 'lucide-react';
-import { settingsApi } from '../../services/contentApi';
+import { settingsApi, smsConfigApi } from '../../services/contentApi';
 import { authApi } from '../../services/authApi';
 import AssetUpload from '../../components/AssetUpload';
 import { calculatorTreatments as defaultTreatments } from '../../data/calculator';
 import {
-  PageHeader, Card, Btn, Spinner, Field, TextInput,
+  PageHeader, Card, Btn, Spinner, Field, TextInput, Select,
 } from '../ui';
 
 const DEFAULT_HOURS = [
@@ -39,7 +41,6 @@ export default function Settings() {
 
   const [uttaraHours, setUttaraHours] = useState(DEFAULT_HOURS);
   const [tongiHours, setTongiHours] = useState(DEFAULT_HOURS);
-  const [booking, setBooking] = useState({ enabled: true, start: '10:00 AM', end: '12:00 PM', stepMinutes: 30 });
   const [stage1Image, setStage1Image] = useState('');
   const [stage2Image, setStage2Image] = useState('');
   const [stage3Image, setStage3Image] = useState('');
@@ -53,13 +54,39 @@ export default function Settings() {
 
   const [saving, setSaving] = useState(false);
 
+  // SMS gateway (MRAM)
+  const [sms, setSms] = useState(null);
+  const [smsForm, setSmsForm] = useState({ apiKey: '', senderId: '', type: 'text', enabled: false });
+  const [smsMsg, setSmsMsg] = useState(null);
+  const [smsSaving, setSmsSaving] = useState(false);
+  const [smsTestTo, setSmsTestTo] = useState('');
+  const [smsTesting, setSmsTesting] = useState(false);
+  const [smsBalance, setSmsBalance] = useState(null);
+
+  const applySms = (c) => {
+    setSms(c);
+    // The API key is never sent back to the browser, so the field starts empty;
+    // leaving it blank on save keeps the stored key.
+    setSmsForm((f) => ({ ...f, senderId: c.senderId || '', type: c.type || 'text', enabled: Boolean(c.enabled) }));
+  };
+
+  const loadSms = useCallback(async () => {
+    try {
+      const res = await smsConfigApi.get();
+      applySms(res?.data?.config);
+    } catch (err) {
+      setSmsMsg({ kind: 'error', text: err.message || 'Could not load SMS settings' });
+    }
+  }, []);
+
+  useEffect(() => { loadSms(); }, [loadSms]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [hours1Res, hours2Res, bookingRes, tooth1Res, tooth2Res, tooth3Res, estimatorRes] = await Promise.allSettled([
+      const [hours1Res, hours2Res, tooth1Res, tooth2Res, tooth3Res, estimatorRes] = await Promise.allSettled([
         settingsApi.getPublic('consultation_hours_uttara'),
         settingsApi.getPublic('consultation_hours_tongi'),
-        settingsApi.getPublic('booking_hours'),
         settingsApi.getPublic('tooth_stage_1_image'),
         settingsApi.getPublic('tooth_stage_2_image'),
         settingsApi.getPublic('tooth_stage_3_image'),
@@ -72,10 +99,6 @@ export default function Settings() {
       if (hours2Res.status === 'fulfilled') {
         const rows = hours2Res.value?.data?.item?.value?.rows;
         if (Array.isArray(rows) && rows.length > 0) setTongiHours(rows);
-      }
-      if (bookingRes.status === 'fulfilled') {
-        const b = bookingRes.value?.data?.item?.value;
-        if (b && typeof b === 'object') setBooking({ enabled: true, start: '10:00 AM', end: '12:00 PM', stepMinutes: 30, ...b });
       }
       if (tooth1Res.status === 'fulfilled') {
         const v = tooth1Res.value?.data?.item?.value;
@@ -141,10 +164,6 @@ export default function Settings() {
   const addHourRow = (branch) => {
     const setter = branch === 'uttara' ? setUttaraHours : setTongiHours;
     setter((prev) => [...prev, { labelEn: '', labelBn: '', hours: '' }]);
-  };
-
-  const handleSaveBooking = async () => {
-    await save('booking_hours', { ...booking, stepMinutes: Number(booking.stepMinutes) || 30 });
   };
 
   const handleSaveToothImages = async () => {
@@ -242,13 +261,91 @@ export default function Settings() {
     }
   };
 
+  const handleSaveSms = async () => {
+    setSmsSaving(true);
+    setSmsMsg(null);
+    try {
+      const payload = {
+        senderId: smsForm.senderId,
+        type: smsForm.type,
+        enabled: smsForm.enabled,
+      };
+      // Only send the key when one was actually typed, so an edit to the sender
+      // ID does not wipe the stored key.
+      if (smsForm.apiKey.trim()) payload.apiKey = smsForm.apiKey.trim();
+      const res = await smsConfigApi.save(payload);
+      applySms(res?.data?.config);
+      setSmsForm((f) => ({ ...f, apiKey: '' }));
+      setSmsMsg({ kind: 'success', text: 'SMS gateway settings saved.' });
+    } catch (err) {
+      setSmsMsg({ kind: 'error', text: err.message || 'Could not save SMS settings' });
+    } finally {
+      setSmsSaving(false);
+    }
+  };
+
+  const handleClearSmsKey = async () => {
+    if (!window.confirm('Remove the stored MRAM API key? No SMS will be sent until a new key is entered.')) return;
+    setSmsSaving(true);
+    setSmsMsg(null);
+    try {
+      const res = await smsConfigApi.save({ apiKey: '' });
+      applySms(res?.data?.config);
+      setSmsForm((f) => ({ ...f, apiKey: '' }));
+      setSmsMsg({ kind: 'success', text: 'API key removed.' });
+    } catch (err) {
+      setSmsMsg({ kind: 'error', text: err.message || 'Could not remove the API key' });
+    } finally {
+      setSmsSaving(false);
+    }
+  };
+
+  const handleTestSms = async () => {
+    if (!smsTestTo.trim()) {
+      setSmsMsg({ kind: 'error', text: 'Enter a mobile number to send the test message to.' });
+      return;
+    }
+    setSmsTesting(true);
+    setSmsMsg(null);
+    try {
+      const res = await smsConfigApi.sendTest(smsTestTo.trim());
+      const d = res?.data;
+      if (d?.ok) {
+        setSmsMsg({ kind: 'success', text: `Test message accepted by MRAM and sent to ${d.to}.` });
+      } else {
+        // The gateway's own wording is what actually diagnoses a bad key, a
+        // missing sender ID or an empty balance, so it is shown verbatim with
+        // the numeric code alongside it. `reason` is the fallback because it is
+        // always present even when the gateway sent no readable message.
+        const code = d?.code ? ` (MRAM code ${d.code})` : '';
+        const detail = res?.message || d?.reason || 'unknown error';
+        setSmsMsg({ kind: 'error', text: `MRAM rejected the test message: ${detail}${code}` });
+      }
+    } catch (err) {
+      setSmsMsg({ kind: 'error', text: err.message || 'Could not send the test message' });
+    } finally {
+      setSmsTesting(false);
+    }
+  };
+
+  const handleSmsBalance = async () => {
+    setSmsMsg(null);
+    try {
+      const res = await smsConfigApi.balance();
+      const d = res?.data;
+      setSmsBalance(d?.ok ? (typeof d.balance === 'object' ? JSON.stringify(d.balance) : String(d.balance)) : `Unavailable (${d?.reason || 'error'})`);
+    } catch (err) {
+      setSmsBalance(`Unavailable (${err.message || 'error'})`);
+    }
+  };
+
   if (loading) return <Spinner />;
 
   return (
     <div>
       <PageHeader
         title="Settings"
-        subtitle="Manage website configuration: consultation hours, booking times, cost estimator and section image"
+        subtitle="Manage website configuration: consultation hours, cost estimator and section image"
         actions={
           <Btn variant="secondary" onClick={load}><RefreshCw className="w-4 h-4" /> Refresh</Btn>
         }
@@ -281,6 +378,103 @@ export default function Settings() {
         </form>
       </Card>
 
+      {/* SMS gateway */}
+      <Card className="mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-9 h-9 rounded-xl bg-[#EDF7FC] text-[#14357B] flex items-center justify-center"><MessageSquare className="w-4.5 h-4.5" /></span>
+          <div>
+            <h3 className="text-base font-bold text-[#0A2255]">SMS Gateway (MRAM)</h3>
+            <p className="text-xs text-[#5A7A9A]">Patients are texted when they book an appointment, and again when you confirm it.</p>
+          </div>
+        </div>
+
+        {smsMsg && (
+          <div className={`mb-4 text-sm rounded-xl px-4 py-3 ${smsMsg.kind === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-600 border border-rose-200'}`}>
+            {smsMsg.text}
+          </div>
+        )}
+
+        {sms && !sms.hasApiKey && !sms.needsReentry && (
+          <div className="mb-4 text-sm rounded-xl px-4 py-3 bg-amber-50 text-amber-700 border border-amber-200">
+            No API key yet. Paste the key from your MRAM panel (Developers &rarr; Regenerate Key), choose your
+            approved sender ID, then use <strong>Send test</strong> before turning on live sending.
+          </div>
+        )}
+        {sms?.needsReentry && (
+          <div className="mb-4 text-sm rounded-xl px-4 py-3 bg-rose-50 text-rose-600 border border-rose-200">
+            The stored API key can no longer be decrypted because the server secret changed. Please enter the key again.
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-3xl">
+          <Field label="MRAM API Key">
+            <TextInput
+              type="password"
+              autoComplete="off"
+              placeholder={sms?.hasApiKey ? `${sms.apiKeyMasked} (leave blank to keep)` : 'demo63************.********'}
+              value={smsForm.apiKey}
+              onChange={(e) => setSmsForm({ ...smsForm, apiKey: e.target.value })}
+            />
+          </Field>
+          <Field label="Sender ID (approved by MRAM)">
+            <TextInput
+              placeholder="NaholDental"
+              value={smsForm.senderId}
+              onChange={(e) => setSmsForm({ ...smsForm, senderId: e.target.value })}
+            />
+          </Field>
+          <Field label="Message Type">
+            <Select value={smsForm.type} onChange={(e) => setSmsForm({ ...smsForm, type: e.target.value })}>
+              <option value="text">text — English</option>
+              <option value="unicode">unicode — বাংলা</option>
+            </Select>
+          </Field>
+          <Field label="Send automatic messages">
+            <Select value={smsForm.enabled ? 'yes' : 'no'} onChange={(e) => setSmsForm({ ...smsForm, enabled: e.target.value === 'yes' })}>
+              <option value="yes">Yes — text patients automatically</option>
+              <option value="no">No — do not send anything</option>
+            </Select>
+          </Field>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-4">
+          <Btn onClick={handleSaveSms} disabled={smsSaving}>
+            <Save className="w-4 h-4" /> {smsSaving ? 'Saving...' : 'Save SMS Settings'}
+          </Btn>
+          {sms?.hasApiKey && (
+            <Btn variant="secondary" onClick={handleClearSmsKey} disabled={smsSaving}>Remove API key</Btn>
+          )}
+        </div>
+
+        <div className="border-t border-[#B8D8EE] mt-5 pt-4">
+          <h4 className="text-sm font-bold text-[#0A2255] mb-1">Test the connection</h4>
+          <p className="text-xs text-[#5A7A9A] mb-3">
+            Sends one real message so you can confirm the key, the sender ID and your credit balance are all accepted.
+            This works even while automatic sending is switched off.
+          </p>
+          <div className="flex flex-wrap items-end gap-2 max-w-3xl">
+            <div className="flex-1 min-w-[200px]">
+              <Field label="Your mobile number">
+                <TextInput
+                  placeholder="01712345678"
+                  value={smsTestTo}
+                  onChange={(e) => setSmsTestTo(e.target.value)}
+                />
+              </Field>
+            </div>
+            <Btn variant="secondary" onClick={handleTestSms} disabled={smsTesting}>
+              <Send className="w-4 h-4" /> {smsTesting ? 'Sending...' : 'Send test'}
+            </Btn>
+            <Btn variant="ghost" onClick={handleSmsBalance} disabled={!sms?.hasApiKey}>Check balance</Btn>
+          </div>
+          {smsBalance && (
+            <p className="mt-3 text-xs text-[#5A7A9A] bg-[#EDF7FC] rounded-xl px-4 py-2 break-all">
+              <ShieldCheck className="w-3.5 h-3.5 inline mr-1" /> MRAM balance: {smsBalance}
+            </p>
+          )}
+        </div>
+      </Card>
+
       {/* Consultation hours */}
       <Card className="mb-6">
         <div className="flex items-center gap-2 mb-4">
@@ -291,6 +485,10 @@ export default function Settings() {
           </div>
         </div>
         <div className="space-y-6 max-w-3xl">
+          {/* These keys are read by the public Contact page and are named after the
+              two real branches. They must stay in step with the chamber records
+              (Admin > Content > Chambers), which is what supplies the branch name
+              patients are given in the booking SMS. */}
           {[
             { key: 'uttara', title: 'Uttara Branch', list: uttaraHours },
             { key: 'tongi', title: 'Tongi Branch', list: tongiHours },
@@ -315,41 +513,6 @@ export default function Settings() {
           <div className="pt-2">
             <Btn onClick={handleSaveHours} disabled={saving}><Save className="w-4 h-4" /> Save Consultation Hours</Btn>
           </div>
-        </div>
-      </Card>
-
-      {/* Easy online booking hours */}
-      <Card className="mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="w-9 h-9 rounded-xl bg-[#EDF7FC] text-[#14357B] flex items-center justify-center"><CalendarClock className="w-4.5 h-4.5" /></span>
-          <div>
-            <h3 className="text-base font-bold text-[#0A2255]">Easy Online Booking — Available Times</h3>
-            <p className="text-xs text-[#5A7A9A]">Enter the open time window (AM/PM). The public booking form will only show these time slots.</p>
-          </div>
-        </div>
-        <div className="max-w-2xl space-y-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <button
-              type="button"
-              onClick={() => setBooking({ ...booking, enabled: !booking.enabled })}
-              className={`relative w-11 h-6 rounded-full transition-colors ${booking.enabled ? 'bg-[#2299D6]' : 'bg-[#B8D8EE]'}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${booking.enabled ? 'translate-x-5' : ''}`} />
-            </button>
-            <span className="text-sm font-medium text-[#0A2255]">{booking.enabled ? 'Online booking time slots enabled' : 'Online booking time slots disabled (falls back to doctor schedule)'}</span>
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="Start Time (AM/PM)">
-              <TextInput value={booking.start || ''} onChange={(e) => setBooking({ ...booking, start: e.target.value })} placeholder="10:00 AM" />
-            </Field>
-            <Field label="End Time (AM/PM)">
-              <TextInput value={booking.end || ''} onChange={(e) => setBooking({ ...booking, end: e.target.value })} placeholder="12:00 PM" />
-            </Field>
-            <Field label="Slot Interval (minutes)">
-              <TextInput type="number" min="10" step="5" value={booking.stepMinutes} onChange={(e) => setBooking({ ...booking, stepMinutes: e.target.value })} />
-            </Field>
-          </div>
-          <Btn onClick={handleSaveBooking} disabled={saving}><Save className="w-4 h-4" /> Save Booking Hours</Btn>
         </div>
       </Card>
 

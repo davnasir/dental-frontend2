@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Users,
   Stethoscope,
+  Pill,
   Sparkles,
   Receipt,
   FileText,
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/admin/appointments', label: 'Appointments', icon: CalendarDays },
   { path: '/admin/patients', label: 'Patients', icon: Users },
+  { path: '/admin/prescriptions', label: 'Prescriptions', icon: Pill },
   { path: '/admin/doctors', label: 'Doctors', icon: Stethoscope },
   { path: '/admin/services', label: 'Services', icon: Sparkles },
   { path: '/admin/billing', label: 'Billing', icon: Receipt },
@@ -109,6 +111,12 @@ export default function AdminLayout() {
     navigate('/admin/login');
   };
 
+  useEffect(() => {
+    if (!checking && !user) {
+      navigate('/admin/login', { replace: true });
+    }
+  }, [checking, user, navigate]);
+
   if (checking) {
     return (
       <div className="min-h-screen bg-[#D6E8F7] flex items-center justify-center">
@@ -120,10 +128,7 @@ export default function AdminLayout() {
     );
   }
 
-  if (!user) {
-    navigate('/admin/login', { replace: true });
-    return null;
-  }
+  if (!user) return null;
 
   const currentTitle = NAV_ITEMS.find((n) => location.pathname === n.path)?.label || 'Management';
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, RefreshCw, Eye, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, RefreshCw, Eye, Trash2, Pill } from 'lucide-react';
 import { patientApi } from '../../services/patientApi';
 import {
   PageHeader, Card, Btn, Spinner, EmptyState, ErrorBanner,
@@ -18,6 +19,7 @@ const emptyForm = {
 };
 
 export default function Patients() {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -214,7 +216,10 @@ export default function Patients() {
             </div>
             <div className="flex justify-end gap-2">
               <Btn variant="secondary" onClick={() => setViewOpen(false)}>Close</Btn>
-              <Btn onClick={() => { setViewOpen(false); openEdit(selected); }}>Edit</Btn>
+              <Btn variant="secondary" onClick={() => { setViewOpen(false); openEdit(selected); }}>Edit</Btn>
+              <Btn onClick={() => { setViewOpen(false); navigate(`/admin/prescriptions?patientId=${selected.id}&new=1`); }}>
+                <Pill className="w-4 h-4" /> Prescribe
+              </Btn>
             </div>
           </div>
         )}

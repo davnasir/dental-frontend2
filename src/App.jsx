@@ -21,6 +21,8 @@ import Reviews from './sections/Reviews';
 import SocialMedia from './sections/SocialMedia';
 import Blog from './sections/Blog';
 import AllBlogs from './pages/AllBlogs';
+import BlogPost from './pages/BlogPost';
+import VerifyPrescription from './pages/VerifyPrescription';
 import FAQ from './sections/FAQ';
 import Appointment from './sections/Appointment';
 import EmergencyCTA from './sections/EmergencyCTA';
@@ -32,6 +34,7 @@ import AdminLayout from './admin/AdminLayout';
 import Dashboard from './admin/pages/Dashboard';
 import Appointments from './admin/pages/Appointments';
 import Patients from './admin/pages/Patients';
+import Prescriptions from './admin/pages/Prescriptions';
 import Doctors from './admin/pages/Doctors';
 import ServicesAdmin from './admin/pages/Services';
 import Billing from './admin/pages/Billing';
@@ -248,11 +251,14 @@ export default function App() {
       <Routes>
         <Route path="/" element={<PublicSite />} />
         <Route path="/blog" element={<AllBlogs />} />
+        <Route path="/blog/:slug" element={<BlogPost />} />
+        <Route path="/verify-prescription" element={<VerifyPrescription />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="appointments" element={<Appointments />} />
           <Route path="patients" element={<Patients />} />
+          <Route path="prescriptions" element={<Prescriptions />} />
           <Route path="doctors" element={<Doctors />} />
           <Route path="services" element={<ServicesAdmin />} />
           <Route path="billing" element={<Billing />} />

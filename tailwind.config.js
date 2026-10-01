@@ -51,9 +51,13 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        display: ['Playfair Display', 'serif'],
-        bengali: ['Noto Sans Bengali', 'Inter', 'sans-serif'],
+        // 'Noto Sans Bengali' sits in the fallback chain (not the head) so the
+        // browser picks it per-glyph: Latin text still renders in Inter/Playfair
+        // while Bangla text falls through to a real Bengali typeface instead of
+        // tofu boxes. Works regardless of the <html lang> value.
+        sans: ['Inter', 'Noto Sans Bengali', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        display: ['Playfair Display', 'Noto Sans Bengali', 'serif'],
+        bengali: ['Noto Sans Bengali', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         'glow-teal': '0 0 25px -5px rgba(34, 153, 214, 0.3)',

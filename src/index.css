@@ -17,7 +17,11 @@
     scroll-padding-top: 88px;
   }
 
-  /* Bengali typography enhancement */
+  /* Bengali typography enhancement.
+     The app root is lang="en", so keying this off html[lang="bn"] alone left
+     Bangla text in the admin screens falling back to a system font. These rules
+     make Bengali render correctly in every context, including mixed
+     Bangla/Latin strings such as medicine names. */
   html[lang="bn"] body,
   html[lang="bn"] h1,
   html[lang="bn"] h2,
@@ -28,8 +32,30 @@
   html[lang="bn"] button,
   html[lang="bn"] input,
   html[lang="bn"] select,
-  html[lang="bn"] textarea {
+  html[lang="bn"] textarea,
+  [lang="bn"],
+  :lang(bn) {
     font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+  }
+
+  /* Bengali needs a slightly taller line box than Latin or conjuncts
+     (ক্ষ, র্ট, ...) get clipped by the default line-height. */
+  html[lang="bn"] body,
+  [lang="bn"],
+  :lang(bn) {
+    line-height: 1.75;
+  }
+
+  /* Make sure a Bengali webfont is actually available before it is used, so the
+     first paint never flashes unstyled tofu on a machine without the font. */
+  @font-face {
+    font-family: 'Noto Sans Bengali Fallback';
+    src: local('Noto Sans Bengali'), local('Nirmala UI'), local('Vrinda'),
+         local('Shonar Bangla'), local('Kalpurush'), local('SolaimanLipi');
+    size-adjust: 100%;
+    ascent-override: 88%;
+    descent-override: 24%;
+    line-gap-override: 0%;
   }
 
   /* Custom scrollbar */
@@ -107,10 +133,77 @@
 
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Prescription printing
+   The pad is portalled to a dedicated node on <body> (.rx-print-root) rather
+   than living inside a modal, because a modal's own scroll container and
+   stacking context make window.print() capture the wrong subtree. On paper
+   every other root node is hidden and only the pad is laid out.
+   --------------------------------------------------------------------------- */
+.rx-print-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: auto;
+  background: #fff;
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body > *:not(.rx-print-root) {
+    display: none !important;
+  }
+
+  .rx-print-root {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+
+  .rx-no-print {
+    display: none !important;
+  }
+
+  .rx-print-sheet {
+    box-shadow: none !important;
+    border: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Keep medicine rows from being split across pages. */
+  .rx-keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .rx-print-table thead {
+    display: table-header-group;
+  }
+
+  .rx-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

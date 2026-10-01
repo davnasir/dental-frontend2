@@ -16,6 +16,18 @@ const fmtDate = (d) => {
   return String(d).slice(0, 10);
 };
 
+// The API stores appointmentTime as 24-hour "HH:mm"; staff and patients both
+// read 12-hour clocks.
+const to12h = (time24) => {
+  if (!time24) return '';
+  const [hStr, mm] = String(time24).split(':');
+  const h = Number(hStr);
+  if (Number.isNaN(h)) return String(time24);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${mm} ${suffix}`;
+};
+
 export default function Appointments() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -173,13 +185,14 @@ export default function Appointments() {
           <EmptyState message="No appointments found" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
+            <table className="w-full min-w-[900px]">
               <thead className="bg-[#EDF7FC]">
                 <tr>
                   <Th>Ref</Th>
                   <Th>Patient</Th>
                   <Th>Date</Th>
                   <Th>Time</Th>
+                  <Th>Branch</Th>
                   <Th>IP</Th>
                   <Th>Status</Th>
                   <Th className="text-right">Actions</Th>
@@ -194,7 +207,17 @@ export default function Appointments() {
                       <div className="text-xs text-[#5A7A9A]">{a.patient?.phone}</div>
                     </Td>
                     <Td>{dateStr(a.appointmentDate)}</Td>
-                    <Td>{a.appointmentTime || '—'}</Td>
+                    <Td>{to12h(a.appointmentTime) || '—'}</Td>
+                    <Td>
+                      {a.chamber?.name ? (
+                        <div>
+                          <div className="text-sm">{a.chamber.name}</div>
+                          {a.chamber.address && <div className="text-xs text-[#5A7A9A]">{a.chamber.address}</div>}
+                        </div>
+                      ) : (
+                        <span className="text-[#BDC9D6]">—</span>
+                      )}
+                    </Td>
                     <Td>
                       {a.ipAddress ? (
                         <span className="inline-flex items-center gap-1 font-mono text-xs">{a.ipAddress}</span>
@@ -255,8 +278,15 @@ export default function Appointments() {
                 </div>
               </Field>
               <Field label="Doctor"><div className="text-sm">{selected.doctor?.name || '—'}</div></Field>
+              <Field label="Branch">
+                <div className="text-sm">
+                  {selected.chamber?.name || '—'}
+                  {selected.chamber?.address && <br />}
+                  {selected.chamber?.address && <span className="text-xs text-[#5A7A9A]">{selected.chamber.address}</span>}
+                </div>
+              </Field>
               <Field label="Service"><div className="text-sm">{selected.service?.name?.en || selected.service?.name || selected.service?.slug || '—'}</div></Field>
-              <Field label="Date & Time"><div className="text-sm">{dateStr(selected.appointmentDate)} at {selected.appointmentTime || '—'}</div></Field>
+              <Field label="Date & Time"><div className="text-sm">{dateStr(selected.appointmentDate)} at {to12h(selected.appointmentTime) || '—'}</div></Field>
               {selected.ipAddress && (
                 <Field label="Booking IP">
                   <div className="flex items-center gap-2">

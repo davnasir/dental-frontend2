@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, ArrowRight, X, Newspaper } from 'lucide-react';
+import { BookOpen, ArrowRight, Newspaper } from 'lucide-react';
 import { blogPosts as localBlog } from '../data/blog';
 import { blogApi } from '../services/contentApi';
 import { resolveImg } from '../utils/image';
@@ -8,8 +8,6 @@ import { useAsyncData } from '../services/useAsyncData';
 import { normalizePost } from '../services/blogHelper';
 
 export default function Blog({ t, lang }) {
-  const [activeArticle, setActiveArticle] = useState(null);
-
   const { data: rawBlogPosts } = useAsyncData(
     () => blogApi.listPublic({ lang }).then((r) => r.data?.items || []),
     localBlog,
@@ -77,14 +75,13 @@ export default function Blog({ t, lang }) {
               </div>
 
               <div className="p-6 pt-0">
-                <button
-                  type="button"
-                  onClick={() => setActiveArticle(post)}
+                <Link
+                  to={`/blog/${post.slug}`}
                   className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#14357B] hover:text-[#0F2A5E] group/btn transition-colors"
                 >
                   <span>{t.blog.readMore}</span>
                   <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-                </button>
+                </Link>
               </div>
             </article>
           ))}
@@ -103,69 +100,6 @@ export default function Blog({ t, lang }) {
             </Link>
           </div>
         )}
-
-        {/* Article Reader Modal */}
-        {activeArticle && (
-          <div
-            className="fixed inset-0 z-[1200] flex items-center justify-center p-4 sm:p-6 bg-black/75 backdrop-blur-sm animate-fade-in"
-            onClick={() => setActiveArticle(null)}
-          >
-            <div
-              className="relative w-full max-w-2xl bg-white rounded-3xl p-6 sm:p-8 border border-[#B8D8EE] shadow-2xl overflow-y-auto max-h-[85vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => setActiveArticle(null)}
-                className="absolute top-5 right-5 p-2 rounded-full bg-[#EDF7FC] text-[#5A7A9A] hover:text-[#0A2255] transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="space-y-4 pt-2">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#D6E8F7] text-[#0A2255] text-xs font-semibold">
-                  {activeArticle.category[lang]}
-                </span>
-
-                <h2 className="text-2xl font-bold font-display text-[#0A2255]">
-                  {activeArticle.title[lang]}
-                </h2>
-
-                <div className="flex items-center gap-3 text-xs text-[#5A7A9A] border-b border-[#B8D8EE] pb-3">
-                  <span>{activeArticle.date}</span>
-                </div>
-
-                <div className="rounded-xl overflow-hidden aspect-video max-h-60 w-full bg-[#0A2255]">
-                  <img
-                    src={resolveImg(activeArticle.image)}
-                    alt={activeArticle.title[lang]}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                <div className="text-sm sm:text-base text-[#5A7A9A] leading-relaxed space-y-3 pt-2">
-                  <p className="font-medium text-[#0A2255]">
-                    {activeArticle.excerpt[lang]}
-                  </p>
-                  <p>
-                    {activeArticle.content[lang]}
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t border-[#B8D8EE] flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setActiveArticle(null)}
-                    className="px-5 py-2 rounded-xl bg-[#14357B] text-white text-xs font-semibold"
-                  >
-                    {lang === 'en' ? 'Done' : 'ঠিক আছে'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
       </div>
     </section>
   );

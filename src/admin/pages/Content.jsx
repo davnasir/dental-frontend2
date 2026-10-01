@@ -215,7 +215,9 @@ export default function Content() {
         name: item.name || '',
         address: item.address || '',
         phone: item.phone || '',
-        workingHours: JSON.stringify(item.workingHours || {}, null, 2),
+        workingHours: item.workingHours && Object.keys(item.workingHours).length
+          ? JSON.stringify(item.workingHours, null, 2)
+          : '',
         status: item.status || 'ACTIVE',
         sortOrder: String(item.sortOrder || 0),
       });
@@ -310,6 +312,14 @@ export default function Content() {
     if (tab === 'chambers' && !form.name.trim()) {
       setFormError('Chamber name is required');
       return;
+    }
+    if (tab === 'chambers' && form.workingHours.trim()) {
+      try {
+        JSON.parse(form.workingHours);
+      } catch {
+        setFormError('Operating hours must be valid JSON');
+        return;
+      }
     }
     setSaving(true);
     setFormError('');
@@ -609,12 +619,12 @@ export default function Content() {
 
           {tab === 'chambers' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Name"><TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Banani Branch" /></Field>
+              <Field label="Name"><TextInput required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Uttara Branch" /></Field>
               <Field label="Phone"><TextInput value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
               <Field label="Address" span={2}><TextInput value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
-              <Field label="Working Hours" span={2}>
-                <textarea rows="5" value={form.workingHours} onChange={(e) => setForm({ ...form, workingHours: e.target.value })} className="w-full p-3 rounded-xl text-sm bg-white border border-[#B8D8EE] text-[#0A2255] focus:outline-none focus:ring-2 focus:ring-[#2299D6] font-mono" placeholder='{"sat":"10:00-21:00","sun":"10:00-21:00","mon":"10:00-21:00","tue":"10:00-21:00","wed":"10:00-21:00","thu":"10:00-21:00","fri":"16:00-21:00"}' />
-                <p className="text-xs text-[#5A7A9A] mt-1">JSON object of day → "open-close". Missing days use defaults.</p>
+              <Field label="Operating Hours" span={2}>
+                <textarea rows="5" value={form.workingHours} onChange={(e) => setForm({ ...form, workingHours: e.target.value })} className="w-full p-3 rounded-xl text-sm bg-white border border-[#B8D8EE] text-[#0A2255] focus:outline-none focus:ring-2 focus:ring-[#2299D6] font-mono" placeholder='{"saturday":"10:00-21:00","sunday":"10:00-21:00","monday":"10:00-21:00","tuesday":"10:00-21:00","wednesday":"10:00-21:00","thursday":"10:00-21:00","friday":"16:00-21:00"}' />
+                <p className="text-xs text-[#5A7A9A] mt-1">JSON object of day → "open-close". These are this branch's operating hours: online booking only offers time slots inside them, and bookings outside them are rejected. Use "closed" to shut a branch for a weekday.</p>
               </Field>
               <Field label="Sort Order"><TextInput type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} /></Field>
               <Field label="Status">

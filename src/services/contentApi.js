@@ -62,6 +62,15 @@ export const settingsApi = {
   upsert: (key, value) => api.put('/admin/settings', { key, value }),
 };
 
+// SMS gateway settings. Admin-only on the server; the API key is never
+// returned, only a mask plus hasApiKey.
+export const smsConfigApi = {
+  get: () => api.get('/sms'),
+  save: (data) => api.put('/sms', data),
+  sendTest: (to, message) => api.post('/sms/test', { to, message }),
+  balance: () => api.get('/sms/balance'),
+};
+
 export const categoryApi = {
   listPublic: () => api.get('/categories/public'),
   list: (params) => api.get('/categories', params),

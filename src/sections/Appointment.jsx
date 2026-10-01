@@ -20,8 +20,9 @@ import { servicesData as localServices } from '../data/services';
 import { doctorApi } from '../services/doctorApi';
 import { serviceApi } from '../services/serviceApi';
 import { appointmentApi } from '../services/appointmentApi';
-import { chamberApi, settingsApi } from '../services/contentApi';
+import { chamberApi } from '../services/contentApi';
 import { useAsyncData } from '../services/useAsyncData';
+import { useToast } from '../contexts/ToastContext';
 
 const to12h = (time24) => {
   if (!time24) return '';
@@ -33,35 +34,14 @@ const to12h = (time24) => {
   return `${h}:${mm} ${ampm}`;
 };
 
-const to24h = (str) => {
-  const m = String(str).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!m) return String(str).trim();
-  let h = Number(m[1]);
-  const mm = m[2];
-  const ampm = m[3].toUpperCase();
-  if (ampm === 'PM' && h !== 12) h += 12;
-  if (ampm === 'AM' && h === 12) h = 0;
-  return `${String(h).padStart(2, '0')}:${mm}`;
-};
-
-const ampToMins = (str) => {
-  const t = to24h(str);
-  const [h, m] = String(t).split(':').map(Number);
-  return h * 60 + m;
-};
-
-const fromMins = (mins) => {
-  const hh = String(Math.floor(mins / 60)).padStart(2, '0');
-  const mm = String(mins % 60).padStart(2, '0');
-  return `${hh}:${mm}`;
-};
-
 export default function Appointment({ t, lang, preselectedServiceId }) {
+  const { showToast } = useToast();
+
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
     email: '',
-    treatment: preselectedServiceId || 'scaling',
+    treatment: preselectedServiceId || '',
     doctorId: '',
     chamberId: '',
     date: '',
@@ -77,6 +57,7 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
   const [submissionError, setSubmissionError] = useState('');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState('');
+  const [slotWindow, setSlotWindow] = useState(null);
 
   const { data: servicesData } = useAsyncData(
     () => serviceApi.listPublic().then((r) => r.data?.items || []),
@@ -91,16 +72,21 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
     []
   );
   const [availableSlots, setAvailableSlots] = useState([]);
-  const [bookingHours, setBookingHours] = useState(null);
 
-  useEffect(() => {
-    settingsApi.getPublic('booking_hours')
-      .then((r) => {
-        const v = r.data?.item?.value;
-        if (v && typeof v === 'object') setBookingHours(v);
-      })
-      .catch(() => { });
-  }, []);
+  const copy = {
+    pickTreatment: lang === 'en' ? 'Please choose a treatment to continue.' : 'চালিয়ে যেতে একটি চিকিৎসা নির্বাচন করুন।',
+    branchClosed: lang === 'en'
+      ? 'This branch is closed on the selected day. Please pick another date or branch.'
+      : 'নির্বাচিত দিনে এই শাখা বন্ধ। অন্য তারিখ বা শাখা নির্বাচন করুন।',
+    noSlots: lang === 'en' ? 'No slots available for this date. Try another date.' : 'এই তারিখে কোনো স্লট নেই। অন্য তারিখে চেষ্টা করুন।',
+    loadFailed: lang === 'en' ? 'Could not load available time slots.' : 'উপলব্ধ সময় লোড করা যায়নি।',
+    pickTime: lang === 'en' ? 'Select a time slot' : 'সময় নির্বাচন করুন',
+    pickDateFirst: lang === 'en' ? 'Select a date first' : 'আগে তারিখ নির্বাচন করুন',
+    checking: lang === 'en' ? 'Checking availability...' : 'সময় যাচাই হচ্ছে...',
+    retry: lang === 'en' ? 'Retry' : 'আবার চেষ্টা করুন',
+    hoursFor: lang === 'en' ? 'Operating hours' : 'সময়সীমা',
+    on: lang === 'en' ? 'on' : 'তারিখে',
+  };
 
   useEffect(() => {
     if (chambersData.length > 0 && !formData.chamberId) {
@@ -120,39 +106,33 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
     }
   }, [doctorsData]);
 
+  // Slot availability is owned by the server: it intersects the selected
+  // branch's operating hours with the doctor's schedule, so the form can never
+  // offer (or accept) a time outside the branch's hours.
   const fetchSlots = async () => {
     if (!formData.doctorId || !formData.date) return;
     setLoadingSlots(true);
     setSlotsError('');
     setAvailableSlots([]);
+    setSlotWindow(null);
     try {
-      // Admin-defined AM/PM booking window takes priority
-      if (bookingHours?.enabled && bookingHours?.start && bookingHours?.end) {
-        const start = ampToMins(bookingHours.start);
-        const end = ampToMins(bookingHours.end);
-        const step = Number(bookingHours.stepMinutes) || 30;
-        const slots = [];
-        for (let min = start; min <= end; min += step) {
-          const time24 = fromMins(min);
-          const isPast = new Date(`${formData.date}T${time24}:00`) <= new Date();
-          if (!isPast) slots.push({ value: time24, label: to12h(time24) });
-        }
-        setAvailableSlots(slots);
-        if (slots.length === 0) {
-          setSlotsError(lang === 'en' ? 'No time slots remain for this date. Try another date.' : 'এই তারিখে আর কোনো সময় নেই। অন্য তারিখে চেষ্টা করুন।');
-        }
-        return;
-      }
-
       const res = await appointmentApi.getSlots(formData.doctorId, formData.date, formData.chamberId || null);
-      const raw = res.data?.slots || [];
+      const data = res.data || {};
+      setSlotWindow({
+        workingHours: data.workingHours || null,
+        closed: Boolean(data.closed),
+        branch: data.branch || null,
+      });
+      const raw = data.slots || [];
       setAvailableSlots(raw.map((slot) => ({ value: slot, label: to12h(slot) })));
-      if (!raw.length) {
-        setSlotsError(lang === 'en' ? 'No slots available for this date. Try another date.' : 'এই তারিখে কোনো স্লট নেই। অন্য তারিখে চেষ্টা করুন।');
+      if (data.closed) {
+        setSlotsError(copy.branchClosed);
+      } else if (!raw.length) {
+        setSlotsError(copy.noSlots);
       }
     } catch (err) {
       setAvailableSlots([]);
-      setSlotsError(err.message || 'Could not load available time slots.');
+      setSlotsError(err.message || copy.loadFailed);
     } finally {
       setLoadingSlots(false);
     }
@@ -161,7 +141,9 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
   useEffect(() => {
     fetchSlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.doctorId, formData.date, formData.chamberId, bookingHours]);
+  }, [formData.doctorId, formData.date, formData.chamberId]);
+
+  const selectedService = servicesData.find((s) => String(s.id) === String(formData.treatment));
 
   const validate = () => {
     const errs = {};
@@ -174,19 +156,29 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
       errs.phone = lang === 'en' ? 'Please enter a valid phone number' : 'সঠিক মোবাইল নম্বর দিন';
     }
     if (!formData.treatment) {
-      errs.treatment = lang === 'en' ? 'Select a treatment' : 'চিকিৎসা নির্বাচন করুন';
+      errs.treatment = copy.pickTreatment;
     }
     if (!formData.date) {
       errs.date = lang === 'en' ? 'Select a preferred date' : 'তারিখ নির্বাচন করুন';
     }
+    if (formData.date && !formData.time) {
+      errs.time = lang === 'en' ? 'Select a time slot' : 'সময় নির্বাচন করুন';
+    }
     return errs;
   };
-
-  const selectedService = servicesData.find((s) => s.id === formData.treatment);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
+
+    // "Desired Treatment" left on the default placeholder blocks the booking.
+    if (!formData.treatment) {
+      setErrors((prev) => ({ ...prev, treatment: copy.pickTreatment }));
+      showToast('alert', copy.pickTreatment);
+      document.getElementById('treatment-select')?.focus();
+      return;
+    }
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -205,7 +197,7 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
       chamberId: formData.chamberId ? Number(formData.chamberId) : undefined,
       serviceSlug: selectedService?.slug || formData.treatment,
       appointmentDate: formData.date,
-      appointmentTime: formData.time || (availableSlots[0]?.value || '10:00'),
+      appointmentTime: formData.time,
       reason: formData.notes,
       notes: formData.notes,
     };
@@ -239,7 +231,7 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
       window.open(waLink, '_blank');
       return;
     }
-    const svcName = selectedService ? selectedService.name.en : formData.treatment;
+    const svcName = selectedService?.name?.en || formData.treatment || (lang === 'en' ? 'General Consultation' : 'সাধারণ পরামর্শ');
     const text = `Hello%20Nahol%20Dental%20Care,%0A%0AI%20would%20like%20to%20request%20an%20appointment:%0A- Name: ${encodeURIComponent(formData.fullName || 'Patient')}%0A- Phone: ${encodeURIComponent(formData.phone || '')}%0A- Treatment: ${encodeURIComponent(svcName)}%0A- Preferred Date: ${encodeURIComponent(formData.date || 'Earliest Available')}%0A- Notes: ${encodeURIComponent(formData.notes || 'None')}`;
     window.open(`https://wa.me/8801966115115?text=${text}`, '_blank');
   };
@@ -356,7 +348,7 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
                   )}
                   <div><strong>Service:</strong> {selectedService?.name?.[lang] || formData.treatment}</div>
                   {formData.date && <div><strong>Preferred Date:</strong> {formData.date}</div>}
-                  <div><strong>Time:</strong> {to12h(confirmation?.appointmentTime || formData.time || availableSlots[0]?.value || '10:00')}</div>
+                  <div><strong>Time:</strong> {to12h(confirmation?.appointmentTime || formData.time)}</div>
                 </div>
 
                 {copied && (
@@ -385,13 +377,17 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
                       fullName: '',
                       phone: '',
                       email: '',
-                      treatment: 'scaling',
+                      treatment: '',
                       doctorId: doctorsData[0] ? String(doctorsData[0].id) : '',
                       chamberId: chambersData[0] ? String(chambersData[0].id) : '',
                       date: '',
                       time: '',
                       notes: ''
                     });
+                    setErrors({});
+                    setSubmissionError('');
+                    setAvailableSlots([]);
+                    setSlotWindow(null);
                   }}
                   className="w-full sm:w-auto px-5 py-3 rounded-xl border border-[#B8D8EE] text-[#0A2255] text-sm font-semibold hover:bg-[#EDF7FC] transition-colors"
                 >
@@ -458,20 +454,32 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
 
                 {/* Treatment Select */}
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-[#0A2255] mb-1.5">
+                  <label htmlFor="treatment-select" className="block text-xs font-bold uppercase tracking-wider text-[#0A2255] mb-1.5">
                     {t.appointment.treatment} *
                   </label>
+
                   <select
+                    id="treatment-select"
                     value={formData.treatment}
-                    onChange={(e) => setFormData({ ...formData, treatment: e.target.value })}
-                    className="w-full py-3 px-4 text-sm rounded-xl bg-white border border-[#B8D8EE] text-[#0A2255] focus:outline-none focus:ring-2 focus:ring-[#2299D6] cursor-pointer"
+                    onChange={(e) => {
+                      setFormData({ ...formData, treatment: e.target.value });
+                      if (e.target.value) setErrors((prev) => ({ ...prev, treatment: '' }));
+                    }}
+                    className={`w-full py-3 px-4 text-sm rounded-xl bg-white border ${errors.treatment ? 'border-rose-500' : 'border-[#B8D8EE]'
+                      } text-[#0A2255] focus:outline-none focus:ring-2 focus:ring-[#2299D6] cursor-pointer`}
                   >
+                    <option value="">{t.appointment.selectTreatment}</option>
                     {servicesData.map((svc) => (
                       <option key={svc.id} value={svc.id}>
                         {svc.name[lang]} ({svc.priceFormatted || `${svc.priceMin} - ${svc.priceMax}`})
                       </option>
                     ))}
                   </select>
+                  {errors.treatment && (
+                    <span className="text-xs text-rose-500 mt-1 block font-medium">
+                      {errors.treatment}
+                    </span>
+                  )}
                 </div>
 
                 {/* Doctor Select */}
@@ -547,7 +555,7 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
                   )}
                 </div>
 
-                {/* Available Time */}
+                {/* Available Time — driven entirely by the selected branch's operating hours */}
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#0A2255] mb-1.5">
                     {lang === 'en' ? 'Available Time' : 'উপলব্ধ সময়'} *
@@ -558,35 +566,50 @@ export default function Appointment({ t, lang, preselectedServiceId }) {
                       loadingSlots ? (
                         <div className="w-full py-3 pl-10 pr-4 text-sm rounded-xl bg-white border border-[#B8D8EE] text-[#5A7A9A] flex items-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          {lang === 'en' ? 'Checking availability...' : 'সময় যাচাই হচ্ছে...'}
+                          {copy.checking}
                         </div>
                       ) : availableSlots.length > 0 ? (
                         <select
                           value={formData.time}
-                          onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                          className="w-full pl-10 pr-4 py-3 text-sm rounded-xl bg-white border border-[#B8D8EE] text-[#0A2255] focus:outline-none focus:ring-2 focus:ring-[#2299D6] cursor-pointer"
+                          onChange={(e) => {
+                            setFormData({ ...formData, time: e.target.value });
+                            if (e.target.value) setErrors((prev) => ({ ...prev, time: '' }));
+                          }}
+                          className={`w-full pl-10 pr-4 py-3 text-sm rounded-xl bg-white border ${errors.time ? 'border-rose-500' : 'border-[#B8D8EE]'
+                            } text-[#0A2255] focus:outline-none focus:ring-2 focus:ring-[#2299D6] cursor-pointer`}
                         >
-                          <option value="">{lang === 'en' ? 'Select a time slot' : 'সময় নির্বাচন করুন'}</option>
+                          <option value="">{copy.pickTime}</option>
                           {availableSlots.map((slot) => (
                             <option key={slot.value} value={slot.value}>{slot.label}</option>
                           ))}
                         </select>
                       ) : (
-                        <div className="w-full py-3 pl-10 pr-4 text-sm rounded-xl bg-white border border-[#B8D8EE] text-[#5A7A9A] flex items-center gap-2">
-                          <span>{slotsError || (lang === 'en' ? 'No slots available for this date.' : 'এই তারিখে কোনো স্লট নেই।')}</span>
-                          {slotsError && (
+                        <div className={`w-full py-3 pl-10 pr-4 text-sm rounded-xl bg-white border ${slotWindow?.closed ? 'border-amber-300 bg-amber-50' : 'border-[#B8D8EE]'
+                          } text-[#5A7A9A] flex items-center gap-2`}>
+                          <span>{slotsError || copy.noSlots}</span>
+                          {slotsError && !slotWindow?.closed && (
                             <button type="button" onClick={fetchSlots} className="ml-auto text-[#2299D6] font-semibold underline shrink-0">
-                              {lang === 'en' ? 'Retry' : 'আবার চেষ্টা করুন'}
+                              {copy.retry}
                             </button>
                           )}
                         </div>
                       )
                     ) : (
                       <div className="w-full py-3 pl-10 pr-4 text-sm rounded-xl bg-white border border-[#B8D8EE] text-[#5A7A9A]">
-                        {lang === 'en' ? 'Select a date first' : 'আগে তারিখ নির্বাচন করুন'}
+                        {copy.pickDateFirst}
                       </div>
                     )}
                   </div>
+                  {errors.time && (
+                    <span className="text-xs text-rose-500 mt-1 block font-medium">
+                      {errors.time}
+                    </span>
+                  )}
+                  {!loadingSlots && slotWindow?.workingHours && (
+                    <span className="text-xs text-[#5A7A9A] mt-1.5 block">
+                      {copy.hoursFor} {copy.on} {formData.date}: {to12h(slotWindow.workingHours.start)} – {to12h(slotWindow.workingHours.end)}
+                    </span>
+                  )}
                 </div>
 
                 {/* Optional Email */}

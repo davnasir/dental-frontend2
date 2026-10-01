@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /verify-prescription
+
+Sitemap: https://naholdentalcare.com.bd/sitemap.xml

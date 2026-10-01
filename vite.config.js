@@ -8,15 +8,23 @@ export default defineConfig({
     open: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://server.alldigitalsolution.xyz',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:5000',
+        target: 'https://server.alldigitalsolution.xyz',
+        changeOrigin: true,
+      },
+      '/sitemap.xml': {
+        target: 'https://server.alldigitalsolution.xyz',
+        changeOrigin: true,
+      },
+      '/robots.txt': {
+        target: 'https://server.alldigitalsolution.xyz',
         changeOrigin: true,
       },
       '/realtime': {
-        target: 'http://localhost:5000',
+        target: 'https://server.alldigitalsolution.xyz',
         ws: true,
         changeOrigin: true,
       },

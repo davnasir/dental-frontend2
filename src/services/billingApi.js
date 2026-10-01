@@ -34,4 +34,9 @@ export const prescriptionApi = {
   create: (data) => api.post('/prescriptions', data),
   update: (id, data) => api.put(`/prescriptions/${id}`, data),
   remove: (id) => api.delete(`/prescriptions/${id}`),
+  // Public: backs the QR code printed on the prescription pad.
+  verify: (code) => api.get(`/prescriptions/verify/${encodeURIComponent(String(code || '').trim().toUpperCase())}`),
 };
+
+export const prescriptionVerifyUrl = (code) =>
+  `${window.location.origin}/verify-prescription?code=${encodeURIComponent(String(code || '').trim().toUpperCase())}`;

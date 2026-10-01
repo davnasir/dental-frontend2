@@ -1,0 +1,18 @@
+#9 1.206 npm warn deprecated multer@1.4.5-lts.2: Multer 1.x is impacted by a number of vulnerabilities, which have been patched in 2.x. You should upgrade to the latest 2.x version.
+ throw err;
+ #9 2.435 Error: Cannot find module '/app/prisma/setup.js'
+ #9 2.435 Error: Cannot find module '/app/prisma/setup.js'
+ #9 2.441 npm error code 1
+#9 2.441 npm error path /app
+#9 2.441 npm error command failed
+#9 2.441 npm error command sh -c node prisma/setup.js
+#9 2.442 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-09-30T16_35_45_205Z-debug-0.log
+#9 ERROR: process "/bin/sh -c npm ci --omit=dev || npm install" did not complete successfully: exit code: 1
+2.435 Node.js v20.20.2
+2.441 npm error code 1
+2.441 npm error path /app
+2.441 npm error command failed
+2.441 npm error command sh -c node prisma/setup.js
+2.442 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-09-30T16_35_45_205Z-debug-0.log
+error: failed to solve: process "/bin/sh -c npm ci --omit=dev || npm install" did not complete successfully: exit code: 1
+error: exit status 1
